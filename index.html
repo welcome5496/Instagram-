@@ -1,1 +1,264 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Instagram Reel Downloader</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+  body {
+    margin: 0;
+    background: #121212;
+    font-family: 'Poppins', sans-serif;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    height: 100vh;
+    box-sizing: border-box;
+  }
+  h1 {
+    font-weight: 600;
+    font-size: 1.8rem;
+    margin: 0.5rem 0 1rem;
+    text-align: center;
+    color: #f09433;
+    background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .input-group {
+    width: 100%;
+    max-width: 350px;
+    display: flex;
+    margin-bottom: 1rem;
+  }
+  input[type="url"], input[type="text"] {
+    flex: 1;
+    padding: 0.6rem 1rem;
+    border-radius: 8px 0 0 8px;
+    border: none;
+    font-size: 1rem;
+    outline: none;
+  }
+  button {
+    background: #f09433;
+    border: none;
+    padding: 0 1rem;
+    font-weight: 600;
+    font-size: 1rem;
+    color: #121212;
+    border-radius: 0 8px 8px 0;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  button:hover {
+    background: #cc5b0d;
+  }
+  #message {
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    min-height: 1.2em;
+    text-align: center;
+  }
+  #video-container {
+    width: 100%;
+    max-width: 350px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0px 4px 16px rgba(255, 105, 105, 0.3);
+    margin-bottom: 1rem;
+  }
+  video {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  a#download-link {
+    display: inline-block;
+    text-decoration: none;
+    background: #f09433;
+    color: #121212;
+    font-weight: 600;
+    padding: 0.6rem 1.2rem;
+    border-radius: 25px;
+    font-size: 1rem;
+    transition: background 0.3s ease;
+  }
+  a#download-link:hover {
+    background: #cc5b0d;
+  }
+  footer {
+    margin-top: auto;
+    font-size: 0.75rem;
+    color: #888;
+    text-align: center;
+    padding: 0.5rem 0;
+    max-width: 350px;
+  }
+  label {
+    font-size: 0.9rem;
+    color: #ccc;
+    margin-bottom: 0.3rem;
+    display: block;
+    max-width: 350px;
+    text-align: left;
+  }
+  .proxy-group {
+    width: 100%;
+    max-width: 350px;
+    margin-bottom: 1rem;
+  }
+  @media (max-width: 400px) {
+    body {
+      padding: 0.5rem;
+    }
+  }
+</style>
+</head>
+<body>
+<h1>Instagram Reel Downloader</h1>
+<div class="input-group" style="margin-bottom: 0.5rem;">
+  <input id="url-input" type="url" placeholder="Paste Instagram Reel URL here" aria-label="Instagram Reel URL" />
+  <button id="download-btn" aria-label="Download">Download</button>
+</div>
+<div class="proxy-group">
+  <label for="proxy-input">Proxy URL (Optional):</label>
+  <input id="proxy-input" type="text" placeholder="e.g. https://api.allorigins.win/get?url=" 
+    aria-label="Proxy URL" />
+</div>
+<div id="message" role="alert"></div>
+<div id="video-container" aria-live="polite"></div>
+<footer>
+  <p>Note: Due to browser restrictions, you may need to use a CORS proxy. <br />
+  Common proxy examples:<br />
+  <code>https://api.allorigins.win/get?url=</code><br />
+  <code>https://cors-anywhere.herokuapp.com/</code><br />
+  Leave blank to use default proxy (<code>https://api.allorigins.win/get?url=</code>)<br />
+  </p>
+</footer>
+<script>
+  const downloadBtn = document.getElementById('download-btn');
+  const urlInput = document.getElementById('url-input');
+  const message = document.getElementById('message');
+  const videoContainer = document.getElementById('video-container');
+  const proxyInput = document.getElementById('proxy-input');
+
+  function clearOutput() {
+    message.textContent = '';
+    videoContainer.innerHTML = '';
+  }
+
+  function showMessage(text, isError = false) {
+    message.textContent = text;
+    message.style.color = isError ? '#f44336' : '#4caf50';
+  }
+
+  function extractVideoUrl(htmlText) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlText, 'text/html');
+    const metaVideo = doc.querySelector('meta[property="og:video"]');
+    if (metaVideo && metaVideo.content) {
+      return metaVideo.content;
+    }
+    const video = doc.querySelector('video');
+    if (video && video.src) {
+      return video.src;
+    }
+    const scripts = doc.querySelectorAll('script[type="text/javascript"]');
+    for (const script of scripts) {
+      const text = script.textContent;
+      if (text.includes('window._sharedData')) {
+        try {
+          const jsonStr = text.match(/window._sharedData\s*=\s*(\{.+\});/);
+          if (jsonStr && jsonStr[1]) {
+            const data = JSON.parse(jsonStr[1]);
+            const media = data?.entry_data?.PostPage?.[0]?.graphql?.shortcode_media;
+            if (media) {
+              if(media.video_url) return media.video_url;
+            }
+          }
+        } catch {}
+      }
+    }
+    return null;
+  }
+
+  downloadBtn.addEventListener('click', async () => {
+    clearOutput();
+    let reelUrl = urlInput.value.trim();
+    let proxyUrl = proxyInput.value.trim();
+
+    if (!reelUrl) {
+      showMessage('Please enter a Reel URL.', true);
+      return;
+    }
+
+    if (!reelUrl.includes('instagram.com') || !reelUrl.includes('/reel/')) {
+      showMessage('Please enter a valid Instagram Reel URL.', true);
+      return;
+    }
+
+    showMessage('Fetching video data...');
+
+    try {
+      if(proxyUrl === '') {
+        proxyUrl = 'https://api.allorigins.win/get?url=';
+      }
+      // Ensure proxyUrl ends with = or proper URL parameter format
+      if(!proxyUrl.endsWith('=')) {
+        if(!proxyUrl.endsWith('?') && !proxyUrl.endsWith('&')) {
+          proxyUrl += (proxyUrl.includes('?') ? '&' : '?') + 'url=';
+        }
+      }
+
+      const fetchUrl = proxyUrl + encodeURIComponent(reelUrl);
+
+      const response = await fetch(fetchUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch Instagram page. Try another proxy or check the URL.');
+      }
+
+      // Handle JSON response from common proxies like allorigins
+      const contentType = response.headers.get('content-type') || '';
+      let htmlText = '';
+      if (contentType.includes('application/json')) {
+        const jsonData = await response.json();
+        if (jsonData.contents) {
+          htmlText = jsonData.contents;
+        } else {
+          throw new Error('Proxy response JSON does not contain expected data.');
+        }
+      } else {
+        htmlText = await response.text();
+      }
+
+      const videoUrl = extractVideoUrl(htmlText);
+
+      if (!videoUrl) {
+        showMessage('Could not extract video URL. The Reel might be private or Instagram layout changed.', true);
+        return;
+      }
+
+      videoContainer.innerHTML = \`
+        <video controls crossorigin="anonymous" playsinline>
+          <source src="\${videoUrl}" type="video/mp4" />
+          Your browser does not support the video tag.
+        </video>
+        <div style="text-align:center; margin-top:10px;">
+          <a id="download-link" href="\${videoUrl}" download="instagram_reel.mp4" target="_blank" rel="noopener noreferrer" aria-label="Download Reel video">Download Video</a>
+        </div>
+      \`;
+
+      showMessage('Video ready! Preview and download below.');
+
+    } catch (err) {
+      showMessage('Error: ' + err.message, true);
+    }
+  });
+</script>
+</body>
+</html>
+
